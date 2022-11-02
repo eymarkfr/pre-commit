@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from typing import Any
 from typing import Sequence
 
 import pre_commit.constants as C
 from pre_commit.clientlib import load_manifest
+from pre_commit.clientlib import load_config
 from pre_commit.clientlib import LOCAL
 from pre_commit.clientlib import META
 from pre_commit.hook import Hook
@@ -161,6 +163,14 @@ def _non_cloned_repository_hooks(
         for hook in repo_config['hooks']
     )
 
+def _cloned_repository_config(
+    repo_config: dict[str, Any],
+        store: Store
+) -> tuple[Hook, ...]:
+    repo, rev = repo_config['repo'], repo_config['rev']
+    config_path = os.path.join(store.clone(repo, rev), C.CONFIG_FILE)
+    return load_config(config_path)
+
 
 def _cloned_repository_hooks(
         repo_config: dict[str, Any],
@@ -204,6 +214,15 @@ def _repository_hooks(
     else:
         return _cloned_repository_hooks(repo_config, store, root_config)
 
+def _repository_config(
+        repo_config: dict[str, Any],
+        store: Store,
+) -> tuple[Hook, ...]:
+    if repo_config['repo'] in {LOCAL, META}:
+        raise NotImplementedError()
+    else:
+        return _cloned_repository_config(repo_config, store)
+
 
 def install_hook_envs(hooks: Sequence[Hook], store: Store) -> None:
     def _need_installed() -> list[Hook]:
@@ -222,10 +241,16 @@ def install_hook_envs(hooks: Sequence[Hook], store: Store) -> None:
         for hook in _need_installed():
             _hook_install(hook)
 
+def get_extended_hooks(repos, store: Store) -> tuple[Hook, ...]:
+    configs = [_repository_config(repo, store) for repo in repos]
+    hooks = ()
+    for config in configs:
+        hooks += all_hooks(config, store)
+    return hooks 
 
 def all_hooks(root_config: dict[str, Any], store: Store) -> tuple[Hook, ...]:
     return tuple(
         hook
         for repo in root_config['repos']
         for hook in _repository_hooks(repo, store, root_config)
-    )
+    ) + get_extended_hooks(root_config['extend'], store)

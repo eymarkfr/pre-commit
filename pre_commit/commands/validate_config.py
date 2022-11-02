@@ -5,7 +5,6 @@ from pre_commit import clientlib
 
 def validate_config(filenames: list[str]) -> int:
     ret = 0
-
     for filename in filenames:
         try:
             clientlib.load_config(filename)

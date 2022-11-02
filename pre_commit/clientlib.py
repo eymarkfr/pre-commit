@@ -306,6 +306,15 @@ LOCAL_HOOK_DICT = cfgv.Map(
     OptionalSensibleRegexAtHook('files', cfgv.check_string),
     OptionalSensibleRegexAtHook('exclude', cfgv.check_string),
 )
+
+CONFIG_REPO_EXTEND = cfgv.Map(
+    'Repository', 'repo',
+
+    cfgv.Required('repo', cfgv.check_string),
+    cfgv.Required('rev', cfgv.check_string),
+    cfgv.WarnAdditionalKeys(('repo', 'rev'), warn_unknown_keys_repo),
+)
+
 CONFIG_REPO_DICT = cfgv.Map(
     'Repository', 'repo',
 
@@ -343,7 +352,8 @@ DEFAULT_LANGUAGE_VERSION = cfgv.Map(
 CONFIG_SCHEMA = cfgv.Map(
     'Config', None,
 
-    cfgv.RequiredRecurse('repos', cfgv.Array(CONFIG_REPO_DICT)),
+    cfgv.OptionalRecurse('repos', cfgv.Array(CONFIG_REPO_DICT), []),
+    cfgv.OptionalRecurse('extend', cfgv.Array(CONFIG_REPO_EXTEND), []),
     cfgv.Optional(
         'default_install_hook_types',
         cfgv.check_array(cfgv.check_one_of(C.HOOK_TYPES)),
@@ -368,6 +378,7 @@ CONFIG_SCHEMA = cfgv.Map(
     cfgv.WarnAdditionalKeys(
         (
             'repos',
+            'extend',
             'default_install_hook_types',
             'default_language_version',
             'default_stages',
