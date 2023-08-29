@@ -8,8 +8,8 @@ from typing import Any
 from typing import Sequence
 
 import pre_commit.constants as C
-from pre_commit.clientlib import load_manifest
 from pre_commit.clientlib import load_config
+from pre_commit.clientlib import load_manifest
 from pre_commit.clientlib import LOCAL
 from pre_commit.clientlib import META
 from pre_commit.hook import Hook
@@ -53,14 +53,9 @@ def _write_state(prefix: Prefix, venv: str, state: object) -> None:
 def _hook_installed(hook: Hook) -> bool:
     lang = languages[hook.language]
     venv = environment_dir(lang.ENVIRONMENT_DIR, hook.language_version)
-    return (
-        venv is None or (
-            (
-                _read_state(hook.prefix, venv) ==
-                _state(hook.additional_dependencies)
-            ) and
-            not lang.health_check(hook.prefix, hook.language_version)
-        )
+    return venv is None or (
+        (_read_state(hook.prefix, venv) == _state(hook.additional_dependencies)) and
+        not lang.health_check(hook.prefix, hook.language_version)
     )
 
 
@@ -79,7 +74,9 @@ def _hook_install(hook: Hook) -> None:
         rmtree(hook.prefix.path(venv))
 
     lang.install_environment(
-        hook.prefix, hook.language_version, hook.additional_dependencies,
+        hook.prefix,
+        hook.language_version,
+        hook.additional_dependencies,
     )
     health_error = lang.health_check(hook.prefix, hook.language_version)
     if health_error:
@@ -94,13 +91,12 @@ def _hook_install(hook: Hook) -> None:
 
 
 def _hook(
-        *hook_dicts: dict[str, Any],
-        root_config: dict[str, Any],
+    *hook_dicts: dict[str, Any],
+    root_config: dict[str, Any],
 ) -> dict[str, Any]:
     ret, rest = dict(hook_dicts[0]), hook_dicts[1:]
     for dct in rest:
         ret.update(dct)
-
     version = ret['minimum_pre_commit_version']
     if parse_version(version) > parse_version(C.VERSION):
         logger.error(
@@ -141,9 +137,10 @@ def _hook(
 
 
 def _non_cloned_repository_hooks(
-        repo_config: dict[str, Any],
-        store: Store,
-        root_config: dict[str, Any],
+    repo_config: dict[str, Any],
+    store: Store,
+    root_config: dict[str, Any],
+    extend_hooks: dict[str, Any] = {},
 ) -> tuple[Hook, ...]:
     def _prefix(language_name: str, deps: Sequence[str]) -> Prefix:
         language = languages[language_name]
@@ -154,28 +151,30 @@ def _non_cloned_repository_hooks(
         else:
             return Prefix(store.make_local(deps))
 
+    config = {**root_config}
     return tuple(
         Hook.create(
             repo_config['repo'],
             _prefix(hook['language'], hook['additional_dependencies']),
-            _hook(hook, root_config=root_config),
+            _hook(hook, root_config=config),
         )
         for hook in repo_config['hooks']
     )
 
+
 def _cloned_repository_config(
-    repo_config: dict[str, Any],
-        store: Store
-) -> tuple[Hook, ...]:
+    repo_config: dict[str, Any], store: Store,
+) -> tuple[tuple[Hook, ...], dict[str, Any]]:
     repo, rev = repo_config['repo'], repo_config['rev']
     config_path = os.path.join(store.clone(repo, rev), C.CONFIG_FILE)
-    return load_config(config_path)
+    return load_config(config_path), repo_config.get('extend_hooks', {})
 
 
 def _cloned_repository_hooks(
-        repo_config: dict[str, Any],
-        store: Store,
-        root_config: dict[str, Any],
+    repo_config: dict[str, Any],
+    store: Store,
+    root_config: dict[str, Any],
+    extend_hooks: dict[str, Any] = {},
 ) -> tuple[Hook, ...]:
     repo, rev = repo_config['repo'], repo_config['rev']
     manifest_path = os.path.join(store.clone(repo, rev), C.MANIFEST_FILE)
@@ -190,8 +189,13 @@ def _cloned_repository_hooks(
             )
             exit(1)
 
+    extend_hooks_by_id = {hook['id']: hook for hook in extend_hooks}
     hook_dcts = [
-        _hook(by_id[hook['id']], hook, root_config=root_config)
+        _hook(
+            {**by_id[hook['id']], **extend_hooks_by_id.get(hook['id'], {})},
+            hook,
+            root_config=root_config,
+        )
         for hook in repo_config['hooks']
     ]
     return tuple(
@@ -205,19 +209,21 @@ def _cloned_repository_hooks(
 
 
 def _repository_hooks(
-        repo_config: dict[str, Any],
-        store: Store,
-        root_config: dict[str, Any],
+    repo_config: dict[str, Any],
+    store: Store,
+    root_config: dict[str, Any],
+    extend_hooks: dict[str, Any] = {},
 ) -> tuple[Hook, ...]:
     if repo_config['repo'] in {LOCAL, META}:
         return _non_cloned_repository_hooks(repo_config, store, root_config)
     else:
-        return _cloned_repository_hooks(repo_config, store, root_config)
+        return _cloned_repository_hooks(repo_config, store, root_config, extend_hooks)
+
 
 def _repository_config(
-        repo_config: dict[str, Any],
-        store: Store,
-) -> tuple[Hook, ...]:
+    repo_config: dict[str, Any],
+    store: Store,
+) -> tuple[tuple[Hook, ...], dict[str, Any]]:
     if repo_config['repo'] in {LOCAL, META}:
         raise NotImplementedError()
     else:
@@ -241,16 +247,22 @@ def install_hook_envs(hooks: Sequence[Hook], store: Store) -> None:
         for hook in _need_installed():
             _hook_install(hook)
 
-def get_extended_hooks(repos, store: Store) -> tuple[Hook, ...]:
+
+def get_extended_hooks(
+    repos: Sequence[dict[str, Any]], store: Store,
+) -> tuple[Hook, ...]:
     configs = [_repository_config(repo, store) for repo in repos]
     hooks = ()
-    for config in configs:
-        hooks += all_hooks(config, store)
-    return hooks 
+    for config, extend_hooks in configs:
+        hooks += all_hooks(config, store, extend_hooks)
+    return hooks
 
-def all_hooks(root_config: dict[str, Any], store: Store) -> tuple[Hook, ...]:
+
+def all_hooks(root_config: dict[str, Any], store: Store, extend_hooks: dict[str, Any] = {}) -> tuple[Hook, ...]:
     return tuple(
         hook
         for repo in root_config['repos']
-        for hook in _repository_hooks(repo, store, root_config)
+        for hook in _repository_hooks(
+            repo, store, root_config, extend_hooks,
+        )
     ) + get_extended_hooks(root_config['extend'], store)

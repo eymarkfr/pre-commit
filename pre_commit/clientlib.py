@@ -53,22 +53,22 @@ def _make_argparser(filenames_help: str) -> argparse.ArgumentParser:
 
 
 MANIFEST_HOOK_DICT = cfgv.Map(
-    'Hook', 'id',
-
+    'Hook',
+    'id',
     cfgv.Required('id', cfgv.check_string),
     cfgv.Required('name', cfgv.check_string),
     cfgv.Required('entry', cfgv.check_string),
     cfgv.Required('language', cfgv.check_one_of(all_languages)),
     cfgv.Optional('alias', cfgv.check_string, ''),
-
     cfgv.Optional('files', check_string_regex, ''),
     cfgv.Optional('exclude', check_string_regex, '^$'),
     cfgv.Optional('types', cfgv.check_array(check_type_tag), ['file']),
     cfgv.Optional('types_or', cfgv.check_array(check_type_tag), []),
     cfgv.Optional('exclude_types', cfgv.check_array(check_type_tag), []),
-
     cfgv.Optional(
-        'additional_dependencies', cfgv.check_array(cfgv.check_string), [],
+        'additional_dependencies',
+        cfgv.check_array(cfgv.check_string),
+        [],
     ),
     cfgv.Optional('args', cfgv.check_array(cfgv.check_string), []),
     cfgv.Optional('always_run', cfgv.check_bool, False),
@@ -147,9 +147,9 @@ class OptionalSensibleRegexAtHook(cfgv.OptionalNoDefault):
         for fwd_slash_re in (r'[\\/]', r'[\/]', r'[/\\]'):
             if fwd_slash_re in dct.get(self.key, ''):
                 logger.warning(
-                    fr'pre-commit normalizes slashes in the {self.key!r} '
-                    fr'field in hook {dct.get("id")!r} to forward slashes, '
-                    fr'so you can use / instead of {fwd_slash_re}',
+                    rf'pre-commit normalizes slashes in the {self.key!r} '
+                    rf'field in hook {dct.get("id")!r} to forward slashes, '
+                    rf'so you can use / instead of {fwd_slash_re}',
                 )
 
 
@@ -165,9 +165,9 @@ class OptionalSensibleRegexAtTop(cfgv.OptionalNoDefault):
         for fwd_slash_re in (r'[\\/]', r'[\/]', r'[/\\]'):
             if fwd_slash_re in dct.get(self.key, ''):
                 logger.warning(
-                    fr'pre-commit normalizes the slashes in the top-level '
-                    fr'{self.key!r} field to forward slashes, so you '
-                    fr'can use / instead of {fwd_slash_re}',
+                    rf'pre-commit normalizes the slashes in the top-level '
+                    rf'{self.key!r} field to forward slashes, so you '
+                    rf'can use / instead of {fwd_slash_re}',
                 )
 
 
@@ -177,7 +177,8 @@ class MigrateShaToRev:
     @staticmethod
     def _cond(key: str) -> cfgv.Conditional:
         return cfgv.Conditional(
-            key, cfgv.check_string,
+            key,
+            cfgv.check_string,
             condition_key='repo',
             condition_value=cfgv.NotIn(LOCAL, META),
             ensure_absent=True,
@@ -210,17 +211,17 @@ def _entry(modname: str) -> str:
 
 
 def warn_unknown_keys_root(
-        extra: Sequence[str],
-        orig_keys: Sequence[str],
-        dct: dict[str, str],
+    extra: Sequence[str],
+    orig_keys: Sequence[str],
+    dct: dict[str, str],
 ) -> None:
     logger.warning(f'Unexpected key(s) present at root: {", ".join(extra)}')
 
 
 def warn_unknown_keys_repo(
-        extra: Sequence[str],
-        orig_keys: Sequence[str],
-        dct: dict[str, str],
+    extra: Sequence[str],
+    orig_keys: Sequence[str],
+    dct: dict[str, str],
 ) -> None:
     logger.warning(
         f'Unexpected key(s) present on {dct["repo"]}: {", ".join(extra)}',
@@ -229,21 +230,24 @@ def warn_unknown_keys_repo(
 
 _meta = (
     (
-        'check-hooks-apply', (
+        'check-hooks-apply',
+        (
             ('name', 'Check hooks apply to the repository'),
             ('files', f'^{re.escape(C.CONFIG_FILE)}$'),
             ('entry', _entry('check_hooks_apply')),
         ),
     ),
     (
-        'check-useless-excludes', (
+        'check-useless-excludes',
+        (
             ('name', 'Check for useless excludes'),
             ('files', f'^{re.escape(C.CONFIG_FILE)}$'),
             ('entry', _entry('check_useless_excludes')),
         ),
     ),
     (
-        'identity', (
+        'identity',
+        (
             ('name', 'identity'),
             ('verbose', True),
             ('entry', _entry('identity')),
@@ -259,7 +263,8 @@ class NotAllowed(cfgv.OptionalNoDefault):
 
 
 META_HOOK_DICT = cfgv.Map(
-    'Hook', 'id',
+    'Hook',
+    'id',
     cfgv.Required('id', cfgv.check_string),
     cfgv.Required('id', cfgv.check_one_of(tuple(k for k, _ in _meta))),
     # language must be system
@@ -276,16 +281,14 @@ META_HOOK_DICT = cfgv.Map(
         # default to the "manifest" parsing
         cfgv.OptionalNoDefault(item.key, item.check_fn)
         # these will always be defaulted above
-        if item.key in {'name', 'language', 'entry'} else
-        item
+        if item.key in {'name', 'language', 'entry'} else item
         for item in MANIFEST_HOOK_DICT.items
     ),
 )
 CONFIG_HOOK_DICT = cfgv.Map(
-    'Hook', 'id',
-
+    'Hook',
+    'id',
     cfgv.Required('id', cfgv.check_string),
-
     # All keys in manifest hook dict are valid in a config hook dict, but
     # are optional.
     # No defaults are provided here as the config is merged on top of the
@@ -299,40 +302,72 @@ CONFIG_HOOK_DICT = cfgv.Map(
     OptionalSensibleRegexAtHook('exclude', cfgv.check_string),
 )
 LOCAL_HOOK_DICT = cfgv.Map(
-    'Hook', 'id',
-
+    'Hook',
+    'id',
     *MANIFEST_HOOK_DICT.items,
-
     OptionalSensibleRegexAtHook('files', cfgv.check_string),
     OptionalSensibleRegexAtHook('exclude', cfgv.check_string),
 )
 
-CONFIG_REPO_EXTEND = cfgv.Map(
-    'Repository', 'repo',
+EXTEND_HOOK_DICT = cfgv.Map(
+    'ExtendHook',
+    'id',
+    cfgv.Required('id', cfgv.check_string),
+    cfgv.Optional('alias', cfgv.check_string, ''),
+    cfgv.Optional('files', check_string_regex, ''),
+    cfgv.Optional('exclude', check_string_regex, '^$'),
+    cfgv.Optional('types', cfgv.check_array(check_type_tag), ['file']),
+    cfgv.Optional('types_or', cfgv.check_array(check_type_tag), []),
+    cfgv.Optional('exclude_types', cfgv.check_array(check_type_tag), []),
+    cfgv.Optional(
+        'additional_dependencies',
+        cfgv.check_array(cfgv.check_string),
+        [],
+    ),
+    cfgv.Optional('args', cfgv.check_array(cfgv.check_string), []),
+    cfgv.Optional('always_run', cfgv.check_bool, False),
+    cfgv.Optional('fail_fast', cfgv.check_bool, False),
+    cfgv.Optional('pass_filenames', cfgv.check_bool, True),
+    cfgv.Optional('description', cfgv.check_string, ''),
+    cfgv.Optional('language_version', cfgv.check_string, C.DEFAULT),
+    cfgv.Optional('log_file', cfgv.check_string, ''),
+    cfgv.Optional('minimum_pre_commit_version', cfgv.check_string, '0'),
+    cfgv.Optional('require_serial', cfgv.check_bool, False),
+    cfgv.Optional('stages', cfgv.check_array(cfgv.check_one_of(C.STAGES)), []),
+    cfgv.Optional('verbose', cfgv.check_bool, False),
+)
 
+CONFIG_REPO_EXTEND = cfgv.Map(
+    'Repository',
+    'repo',
     cfgv.Required('repo', cfgv.check_string),
     cfgv.Required('rev', cfgv.check_string),
-    cfgv.WarnAdditionalKeys(('repo', 'rev'), warn_unknown_keys_repo),
+    cfgv.Optional('extend_hooks', cfgv.Array(EXTEND_HOOK_DICT).check, {}),
+    cfgv.WarnAdditionalKeys(('repo', 'rev', 'extend_hooks'), warn_unknown_keys_repo),
 )
 
 CONFIG_REPO_DICT = cfgv.Map(
-    'Repository', 'repo',
-
+    'Repository',
+    'repo',
     cfgv.Required('repo', cfgv.check_string),
-
     cfgv.ConditionalRecurse(
-        'hooks', cfgv.Array(CONFIG_HOOK_DICT),
-        'repo', cfgv.NotIn(LOCAL, META),
+        'hooks',
+        cfgv.Array(CONFIG_HOOK_DICT),
+        'repo',
+        cfgv.NotIn(LOCAL, META),
     ),
     cfgv.ConditionalRecurse(
-        'hooks', cfgv.Array(LOCAL_HOOK_DICT),
-        'repo', LOCAL,
+        'hooks',
+        cfgv.Array(LOCAL_HOOK_DICT),
+        'repo',
+        LOCAL,
     ),
     cfgv.ConditionalRecurse(
-        'hooks', cfgv.Array(META_HOOK_DICT),
-        'repo', META,
+        'hooks',
+        cfgv.Array(META_HOOK_DICT),
+        'repo',
+        META,
     ),
-
     MigrateShaToRev(),
     WarnMutableRev(
         'rev',
@@ -342,16 +377,19 @@ CONFIG_REPO_DICT = cfgv.Map(
         cfgv.NotIn(LOCAL, META),
         True,
     ),
-    cfgv.WarnAdditionalKeys(('repo', 'rev', 'hooks'), warn_unknown_keys_repo),
+    cfgv.WarnAdditionalKeys(
+        ('repo', 'rev', 'hooks', 'extend_hooks'), warn_unknown_keys_repo,
+    ),
 )
 DEFAULT_LANGUAGE_VERSION = cfgv.Map(
-    'DefaultLanguageVersion', None,
+    'DefaultLanguageVersion',
+    None,
     cfgv.NoAdditionalKeys(all_languages),
     *(cfgv.Optional(x, cfgv.check_string, C.DEFAULT) for x in all_languages),
 )
 CONFIG_SCHEMA = cfgv.Map(
-    'Config', None,
-
+    'Config',
+    None,
     cfgv.OptionalRecurse('repos', cfgv.Array(CONFIG_REPO_DICT), []),
     cfgv.OptionalRecurse('extend', cfgv.Array(CONFIG_REPO_EXTEND), []),
     cfgv.Optional(
@@ -360,7 +398,9 @@ CONFIG_SCHEMA = cfgv.Map(
         ['pre-commit'],
     ),
     cfgv.OptionalRecurse(
-        'default_language_version', DEFAULT_LANGUAGE_VERSION, {},
+        'default_language_version',
+        DEFAULT_LANGUAGE_VERSION,
+        {},
     ),
     cfgv.Optional(
         'default_stages',
@@ -379,6 +419,7 @@ CONFIG_SCHEMA = cfgv.Map(
         (
             'repos',
             'extend',
+            'extend_hooks',
             'default_install_hook_types',
             'default_language_version',
             'default_stages',
@@ -392,7 +433,6 @@ CONFIG_SCHEMA = cfgv.Map(
     ),
     OptionalSensibleRegexAtTop('files', cfgv.check_string),
     OptionalSensibleRegexAtTop('exclude', cfgv.check_string),
-
     # do not warn about configuration for pre-commit.ci
     cfgv.OptionalNoDefault('ci', cfgv.check_type(dict)),
 )
